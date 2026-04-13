@@ -7,7 +7,7 @@ from pathlib import Path
 # ------------------------------
 BASE_DIR = Path(__file__).parent
 FRAMES_NPZ = BASE_DIR / "frames_data.npz"
-HDF5_PATH = BASE_DIR / "BSE_Detailed_Output_0.h5"
+HDF5_PATH = BASE_DIR / "BSE_Detailed_Output_3.h5"
 OUTPUT_NPZ = BASE_DIR / "frames_data.npz"
 
 

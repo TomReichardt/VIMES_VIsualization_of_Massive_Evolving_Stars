@@ -1,0 +1,21 @@
+[project]
+name = "vimes-visualization-of-massive-evolving-stars"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Tom Reichardt", email = "treichardt@swin.edu.au" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=2.2.6",
+    "pillow>=12.2.0",
+    "pygame>=2.6.1",
+]
+
+[project.scripts]
+vimes-visualization-of-massive-evolving-stars = "vimes_visualization_of_massive_evolving_stars:main"
+
+[build-system]
+requires = ["uv_build>=0.11.6,<0.12.0"]
+build-backend = "uv_build"

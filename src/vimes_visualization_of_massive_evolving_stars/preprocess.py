@@ -18,7 +18,7 @@ import numpy as np
 import h5py as h5
 
 BASE_DIR = Path(__file__).parent
-HDF5_PATH = BASE_DIR / "BSE_Detailed_Output_0.h5"
+HDF5_PATH = BASE_DIR / "BSE_Detailed_Output_3.h5"
 OUTPUT_FRAMES_FILE = BASE_DIR / "frames_data.npz"
 
 FRAMES_PER_PHASE = 100
