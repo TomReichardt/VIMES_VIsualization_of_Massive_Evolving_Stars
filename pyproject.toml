@@ -1,20 +1,24 @@
 [project]
-name = "vimes-visualization-of-massive-evolving-stars"
+name = "vimes"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 authors = [
-    { name = "Tom Reichardt", email = "treichardt@swin.edu.au" }
+    { name = "Laya Binu", email = "layambinu@gmail.com" }
 ]
 requires-python = ">=3.10"
 dependencies = [
+    "astro-tulips>=1.0.3",
+    "h5py>=3.16.0",
+    "imageio>=2.37.3",
     "numpy>=2.2.6",
     "pillow>=12.2.0",
     "pygame>=2.6.1",
 ]
 
 [project.scripts]
-vimes-visualization-of-massive-evolving-stars = "vimes_visualization_of_massive_evolving_stars:main"
+vimes-preprocess = "vimes.cli:preprocess"
+vimes = "vimes.cli:animate"
 
 [build-system]
 requires = ["uv_build>=0.11.6,<0.12.0"]

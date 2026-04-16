@@ -60,12 +60,6 @@ def linear_scaled_radius(radius_rsun, pixels_at_ref_lin=300):
     return  (radius_rsun / 100.0) * pixels_at_ref_lin
 
 
-def scaled_radius(radius_rsun, pixels_at_ref=100):
-    if USE_LOG_SCALING:
-        return log_scaled_radius(radius_rsun, pixels_at_ref)
-    else:
-        return linear_scaled_radius(radius_rsun, pixels_at_ref)
-
 def make_antialiased_circle(radius_px, color):
    
     r = max(int(radius_px), 2)
@@ -86,7 +80,9 @@ class PygameAnimator:
         background_path=BACKGROUND_PATH,
         ce_path=CE_OVERLAY_PATH,
         save_mp4=None,
-        no_display=False
+        no_display=False,
+        use_log_scaling=False,
+        use_tulips_color=False
     ):
         self.save_mp4 = save_mp4
         self.no_display = no_display
@@ -158,7 +154,14 @@ class PygameAnimator:
                 ]
             )
 
+        self.use_log_scaling = use_log_scaling
+        self.use_tulips_color = use_tulips_color
         self.determine_scale()
+
+    def scaled_radius(self, radius_rsun, pixels_at_ref=100):
+        if self.use_log_scaling:
+            return log_scaled_radius(radius_rsun, pixels_at_ref)
+        return linear_scaled_radius(radius_rsun, pixels_at_ref)
 
     def determine_scale(self):
         # estimate max extent from frames for visual mapping
@@ -168,7 +171,7 @@ class PygameAnimator:
             a = f['SemiMajorAxis'] * (1 + f['Eccentricity'])
             max_extent = max(max_extent, rmax*4 + a)
        
-        ref_px = scaled_radius(max_extent)
+        ref_px = self.scaled_radius(max_extent)
         if ref_px <= 0:
             ref_px = 100
         target_half = 0.6 * min(SCREEN_SIZE)/2.0
@@ -187,7 +190,7 @@ class PygameAnimator:
         img_path = self.image_dir / f"{stype_name}.png"
         if not img_path.exists():
             # fallback
-            r_px = max(int(scaled_radius(radius_rsun)), 10) 
+            r_px = max(int(self.scaled_radius(radius_rsun)), 10) 
              # minimum radius 10 px
             surf = pygame.Surface((2*r_px, 2*r_px), pygame.SRCALPHA)
             gfxdraw.filled_circle(surf, r_px, r_px, r_px, (200,200,255,255))
@@ -197,7 +200,7 @@ class PygameAnimator:
         #it looks really wierd and pixelated without this
         pil = Image.open(img_path).convert("RGBA")
         # scale relative to radius
-        r_px = max(int(scaled_radius(radius_rsun)), 10) 
+        r_px = max(int(self.scaled_radius(radius_rsun)), 10) 
          # minimum radius 10 px
         w,h = pil.size
         scale_factor = (2 * r_px) / h
@@ -210,7 +213,7 @@ class PygameAnimator:
     
     def get_colored_circle_surface(self, radius_rsun, rgb, u=0.8):
        
-        r_px = max(int(scaled_radius(radius_rsun)), 10)
+        r_px = max(int(self.scaled_radius(radius_rsun)), 10)
         size = 2 * r_px
 
         surf = pygame.Surface((size, size), pygame.SRCALPHA)
@@ -320,9 +323,9 @@ class PygameAnimator:
             dist1 = math.sqrt(x1_phys**2 + y1_phys**2)
             # compute scale from physical distances->log(px)
             if dist1 > 0:
-                scale_dist = scaled_radius(dist1) / dist1
+                scale_dist = self.scaled_radius(dist1) / dist1
                 # if using linear, multiply by 3
-                if not USE_LOG_SCALING:
+                if not self.use_log_scaling:
                     scale_dist *= 3.0
             else:
                 scale_dist = 0.0
@@ -376,7 +379,7 @@ class PygameAnimator:
 
 
 
-            if USE_TULIPS_COLOR:
+            if self.use_tulips_color:
                 surf1 = self.get_colored_circle_surface(
                     f['Radius(1)'], f['RGB1']
                 )
@@ -388,7 +391,7 @@ class PygameAnimator:
                 surf2 = self.get_star_surface(f['stypeName2'], f['Radius(2)'])
 
             # Override circles with images for compact objects, since idt thats accurate for a NS but not sure
-            if USE_TULIPS_COLOR:
+            if self.use_tulips_color:
                 if f['stypeName1'] in ('BH', 'NS', 'WD'):
                     surf1 = self.get_star_surface(f['stypeName1'], f['Radius(1)'])
                 if f['stypeName2'] in ('BH', 'NS', 'WD'):
@@ -406,14 +409,14 @@ class PygameAnimator:
                 # star 1
                 if self.bh_birth_frame1 is not None and self.bh_birth_frame1 <= frame_idx < self.bh_birth_frame1 + 50:
                     sn_w, sn_h = self.supernova_img.get_size()
-                    scale_factor = max(int(scaled_radius(f['Radius(1)'])*2 / sn_h), 1)
+                    scale_factor = max(int(self.scaled_radius(f['Radius(1)'])*2 / sn_h), 1)
                     # apply 50% size
                     sn_scaled = pygame.transform.smoothscale(self.supernova_img, (int(sn_w*scale_factor*0.5), int(sn_h*scale_factor*0.5)))
                     self.screen.blit(sn_scaled, (sx1 - sn_scaled.get_width()//2, sy1 - sn_scaled.get_height()//2))
                 # star 2
                 if self.bh_birth_frame2 is not None and self.bh_birth_frame2 <= frame_idx < self.bh_birth_frame2 + 50:
                     sn_w, sn_h = self.supernova_img.get_size()
-                    scale_factor = max(int(scaled_radius(f['Radius(2)'])*2 / sn_h), 1)
+                    scale_factor = max(int(self.scaled_radius(f['Radius(2)'])*2 / sn_h), 1)
                     # apply 50% size
                     sn_scaled = pygame.transform.smoothscale(self.supernova_img, (int(sn_w*scale_factor*0.5), int(sn_h*scale_factor*0.5)))
                     self.screen.blit(sn_scaled, (sx2 - sn_scaled.get_width()//2, sy2 - sn_scaled.get_height()//2))
@@ -510,7 +513,7 @@ class PygameAnimator:
                 self.screen.blit(txt_surf, (x0, y0 + i*20))
 
 
-            if (not USE_TULIPS_COLOR) and self.stellar_list_img:
+            if (not self.use_tulips_color) and self.stellar_list_img:
                 orig_w, orig_h = self.stellar_list_img.get_size()
                 new_w, new_h = orig_w // 2, orig_h // 2
                 img_scaled = pygame.transform.smoothscale(self.stellar_list_img, (new_w, new_h))
@@ -520,7 +523,7 @@ class PygameAnimator:
                 self.screen.blit(img_scaled, (img_x, img_y))
 
             # Draw reference scale at bottom
-            if USE_LOG_SCALING:
+            if self.use_log_scaling:
                 major_ticks = [0, 10, 100, 1000]
 
                 minor_ticks = []
@@ -544,7 +547,7 @@ class PygameAnimator:
                 scale_bar_ticks = list(range(0, int(scale_bar_length_rsun)+1, tick_interval_rsun))
                 major_ticks = scale_bar_ticks[::2] 
 
-            scale_px = scaled_radius(scale_bar_length_rsun) * self.scale
+            scale_px = self.scaled_radius(scale_bar_length_rsun) * self.scale
 
             margin = 40
             x_start = SCREEN_SIZE[0]//2 - scale_px//2
@@ -555,7 +558,7 @@ class PygameAnimator:
             pygame.draw.line(self.screen, (255,255,255), (x_start, y_start), (x_start + scale_px, y_start), 2)
 
             for r in scale_bar_ticks:
-                x_tick = x_start + scaled_radius(r) * self.scale
+                x_tick = x_start + self.scaled_radius(r) * self.scale
                 tick_height = 6
                 pygame.draw.line(self.screen, (255,255,255), (x_tick, y_start - tick_height//2), (x_tick, y_start + tick_height//2), 2)
                 if r in major_ticks:
@@ -646,7 +649,9 @@ def main():
     animator = PygameAnimator(
         FRAMES_FILE,
         save_mp4=args.save_mp4,
-        no_display=args.no_display
+        no_display=args.no_display,
+        use_log_scaling=USE_LOG_SCALING,
+        use_tulips_color=USE_TULIPS_COLOR
     )
     animator.run()
 
