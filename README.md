@@ -14,7 +14,9 @@ Animation is reflective of the radius, separation, perceived color etc of the st
 
 ALL code related to temperature-color relationship is directly from the (TULIPS code)[https://bitbucket.org/elaplace/tulips/src/master/]. Read (the paper)[https://ui.adsabs.harvard.edu/abs/2022A%26C....3800516L/abstract] for more information.
 
-## Installation
+## Installation and usage
+
+### Using uv (recommended)
 This project is managed by [uv](https://docs.astral.sh/uv/), so the best way to install it is also using uv (follow [install instructions for uv](https://docs.astral.sh/uv/getting-started/installation/) if you don't have it):
 
     uv tool install git+https://github.com/layabinu/VIMES_VIsualization_of_Massive_Evolving_Stars.git
@@ -23,7 +25,16 @@ The project can also be cloned from Github as usual, and then installed by runni
 
     uv tool install -e .
 
-The `-e` flag signals that changes to the cloned codebase will also automatically be reflected in the installed tool.
+The `-e` flag signals that local changes to the cloned codebase will also automatically be reflected in the installed tool.
+
+### Using pip
+If you'd rather just use pip, we recommend installing the cloned project to a virtual environment:
+
+    python -m venv venv
+    source venv/bin/activate
+    pip install -e .
+
+The project will then need to be run using the virtual environment, which is typically done by activating the environment before running the script.
 
 ## Usage
 Once installed, the project should be able to be run as follows:
