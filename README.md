@@ -14,7 +14,7 @@ Animation is reflective of the radius, separation, perceived color etc of the st
 
 ALL code related to temperature-color relationship is directly from the (TULIPS code)[https://bitbucket.org/elaplace/tulips/src/master/]. Read (the paper)[https://ui.adsabs.harvard.edu/abs/2022A%26C....3800516L/abstract] for more information.
 
-## Installation and usage
+## Installation
 
 ### Using uv (recommended)
 This project is managed by [uv](https://docs.astral.sh/uv/), so the best way to install it is also using uv (follow [install instructions for uv](https://docs.astral.sh/uv/getting-started/installation/) if you don't have it):

@@ -40,7 +40,7 @@ BACKGROUND_PATH = STELLAR_IMG_DIR / "Background.png"
 CE_OVERLAY_PATH = STELLAR_IMG_DIR / "common_envelope.png"
 
 
-SCREEN_SIZE = (1000, 800)
+SCREEN_SIZE = (1008, 800)
 FPS_PLAYBACK = 50
 PIXELS_AT_REF = 100
 PIXELS_AT_REF_LIN = 300
@@ -109,6 +109,7 @@ class PygameAnimator:
         self.font = pygame.font.SysFont("Arial", 18)
         self.bold_font = pygame.font.SysFont("Arial", 18, bold=True)
         self.img_cache = {}
+        self.init_img_cache = {}
         self.ce_img = None
         self.mt_img_path = self.image_dir / "mass_transfer_stream.png" 
         self.mt_img = None
@@ -187,27 +188,36 @@ class PygameAnimator:
         key = (stype_name, int(round(radius_rsun)))
         if key in self.img_cache:
             return self.img_cache[key]
+
         img_path = self.image_dir / f"{stype_name}.png"
         if not img_path.exists():
             # fallback
             r_px = max(int(self.scaled_radius(radius_rsun)), 10) 
-             # minimum radius 10 px
+            # minimum radius 10 px
             surf = pygame.Surface((2*r_px, 2*r_px), pygame.SRCALPHA)
             gfxdraw.filled_circle(surf, r_px, r_px, r_px, (200,200,255,255))
             self.img_cache[key] = surf
             return surf
-        # load with PIL first for scaling quality then convert to pygame
-        #it looks really wierd and pixelated without this
-        pil = Image.open(img_path).convert("RGBA")
-        # scale relative to radius
-        r_px = max(int(self.scaled_radius(radius_rsun)), 10) 
-         # minimum radius 10 px
-        w,h = pil.size
+
+        # Build a high-quality base surface once per stype using PIL,
+        # then use pygame for all size variants (much faster on cache miss)
+        if stype_name not in self.init_img_cache:
+            pil = Image.open(img_path).convert("RGBA")
+            # Scale to a fixed large size once with LANCZOS for quality
+            BASE_PX = 512
+            pil_base = pil.resize((BASE_PX, BASE_PX), Image.Resampling.LANCZOS)
+            base_surf = pygame.image.fromstring(
+                pil_base.tobytes(), pil_base.size, pil_base.mode
+            ).convert_alpha()
+            self.init_img_cache[stype_name] = base_surf  # now a Surface, not PIL
+
+        r_px = max(int(self.scaled_radius(radius_rsun)), 10)
+        base_surf = self.init_img_cache[stype_name]
+        w, h = base_surf.get_size()
         scale_factor = (2 * r_px) / h
         new_w = max(4, int(w * scale_factor))
         new_h = max(4, int(h * scale_factor))
-        pil_resized = pil.resize((new_w, new_h), Image.Resampling.LANCZOS)
-        surf = pygame.image.fromstring(pil_resized.tobytes(), pil_resized.size, pil_resized.mode).convert_alpha()
+        surf = pygame.transform.smoothscale(base_surf, (new_w, new_h))
         self.img_cache[key] = surf
         return surf
     
@@ -303,7 +313,11 @@ class PygameAnimator:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
-            self.clock.tick(FPS_PLAYBACK)
+            
+            if self.save_mp4:
+                self.clock.tick()
+            else:
+                self.clock.tick(FPS_PLAYBACK)
             # draw background
             if self.bg_surf:
                 self.screen.blit(self.bg_surf, (0,0))
@@ -567,8 +581,10 @@ class PygameAnimator:
             
             #TESTING VDIEO SAVBING
             if self.video_writer:
-                frame = pygame.surfarray.array3d(self.screen)
-                frame = np.transpose(frame, (1, 0, 2)) 
+                raw = pygame.image.tobytes(self.screen, "RGB")
+                frame = np.frombuffer(raw, dtype=np.uint8).reshape(
+                    self.screen.get_height(), self.screen.get_width(), 3
+                )
                 self.video_writer.append_data(frame)
             if not self.no_display:
                 pygame.display.flip()
