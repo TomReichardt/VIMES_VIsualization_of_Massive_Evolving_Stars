@@ -222,46 +222,36 @@ class PygameAnimator:
         return surf
     
     def get_colored_circle_surface(self, radius_rsun, rgb, u=0.8):
-       
         r_px = max(int(self.scaled_radius(radius_rsun)), 10)
         size = 2 * r_px
-
-        surf = pygame.Surface((size, size), pygame.SRCALPHA)
-
-        cx = cy = r_px
         R = float(r_px)
-
         base_r, base_g, base_b = rgb
 
-        for y in range(size):
-            dy = y - cy
-            for x in range(size):
-                dx = x - cx
-                r = math.hypot(dx, dy)
+        # Build coordinate grids
+        x, y = np.ogrid[:size, :size]
+        dx = x - r_px
+        dy = y - r_px
+        dist = np.hypot(dx, dy)
 
-                if r <= R:
-                    # mu = cos(theta) = sqrt(1 - (r/R)^2)
-                    #from online
-                    mu = math.sqrt(1.0 - (r / R) ** 2)
+        # Limb darkening intensity
+        mask = dist <= R
+        mu = np.where(mask, np.sqrt(np.clip(1.0 - (dist / R) ** 2, 0, 1)), 0)
+        intensity = np.where(mask, 1.0 - u * (1.0 - mu), 0)
 
-                    # the darker outer edge
-                    #this is from a limb darkening equation i got online but have no clue if its the correct way to use it
-                    #it looks fine tho so ill fix / double check later
-                    intensity = 1.0 - u * (1.0 - mu)
+        # Build RGB array
+        pixels = np.zeros((size, size, 3), dtype=np.uint8)
+        pixels[..., 0] = np.clip(base_r * intensity, 0, 255)
+        pixels[..., 1] = np.clip(base_g * intensity, 0, 255)
+        pixels[..., 2] = np.clip(base_b * intensity, 0, 255)
 
-                    col = (
-                        int(base_r * intensity),
-                        int(base_g * intensity),
-                        int(base_b * intensity),
-                        255
-                    )
+        # Create Surface and blit RGB array
+        surf = pygame.Surface((size, size), pygame.SRCALPHA)
+        pygame.surfarray.blit_array(surf, pixels)
 
-                    surf.set_at((x, y), col)
-
+        # Set alpha channel separately
+        alpha = np.where(mask, 255, 0).astype(np.uint8)
+        pygame.surfarray.pixels_alpha(surf)[...] = alpha
         return surf
-
-
-
 
     def draw_mass_transfer_hourglass(self, surface, start_xy, end_xy, rstart_px, rend_px):
         x1,y1 = start_xy
