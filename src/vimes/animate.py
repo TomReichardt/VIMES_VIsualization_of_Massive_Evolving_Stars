@@ -40,7 +40,7 @@ BACKGROUND_PATH = STELLAR_IMG_DIR / "Background.png"
 CE_OVERLAY_PATH = STELLAR_IMG_DIR / "common_envelope.png"
 
 
-SCREEN_SIZE = (1000, 800)
+SCREEN_SIZE = (1008, 800)
 FPS_PLAYBACK = 50
 PIXELS_AT_REF = 100
 PIXELS_AT_REF_LIN = 300
@@ -59,12 +59,6 @@ def linear_scaled_radius(radius_rsun, pixels_at_ref_lin=300):
     radius_rsun = max(radius_rsun, 0.0)
     return  (radius_rsun / 100.0) * pixels_at_ref_lin
 
-
-def scaled_radius(radius_rsun, pixels_at_ref=100):
-    if USE_LOG_SCALING:
-        return log_scaled_radius(radius_rsun, pixels_at_ref)
-    else:
-        return linear_scaled_radius(radius_rsun, pixels_at_ref)
 
 def make_antialiased_circle(radius_px, color):
    
@@ -86,7 +80,9 @@ class PygameAnimator:
         background_path=BACKGROUND_PATH,
         ce_path=CE_OVERLAY_PATH,
         save_mp4=None,
-        no_display=False
+        no_display=False,
+        use_log_scaling=False,
+        use_tulips_color=False
     ):
         self.save_mp4 = save_mp4
         self.no_display = no_display
@@ -113,6 +109,7 @@ class PygameAnimator:
         self.font = pygame.font.SysFont("Arial", 18)
         self.bold_font = pygame.font.SysFont("Arial", 18, bold=True)
         self.img_cache = {}
+        self.init_img_cache = {}
         self.ce_img = None
         self.mt_img_path = self.image_dir / "mass_transfer_stream.png" 
         self.mt_img = None
@@ -158,7 +155,14 @@ class PygameAnimator:
                 ]
             )
 
+        self.use_log_scaling = use_log_scaling
+        self.use_tulips_color = use_tulips_color
         self.determine_scale()
+
+    def scaled_radius(self, radius_rsun, pixels_at_ref=100):
+        if self.use_log_scaling:
+            return log_scaled_radius(radius_rsun, pixels_at_ref)
+        return linear_scaled_radius(radius_rsun, pixels_at_ref)
 
     def determine_scale(self):
         # estimate max extent from frames for visual mapping
@@ -168,7 +172,7 @@ class PygameAnimator:
             a = f['SemiMajorAxis'] * (1 + f['Eccentricity'])
             max_extent = max(max_extent, rmax*4 + a)
        
-        ref_px = scaled_radius(max_extent)
+        ref_px = self.scaled_radius(max_extent)
         if ref_px <= 0:
             ref_px = 100
         target_half = 0.6 * min(SCREEN_SIZE)/2.0
@@ -184,71 +188,70 @@ class PygameAnimator:
         key = (stype_name, int(round(radius_rsun)))
         if key in self.img_cache:
             return self.img_cache[key]
+
         img_path = self.image_dir / f"{stype_name}.png"
         if not img_path.exists():
             # fallback
-            r_px = max(int(scaled_radius(radius_rsun)), 10) 
-             # minimum radius 10 px
+            r_px = max(int(self.scaled_radius(radius_rsun)), 10) 
+            # minimum radius 10 px
             surf = pygame.Surface((2*r_px, 2*r_px), pygame.SRCALPHA)
             gfxdraw.filled_circle(surf, r_px, r_px, r_px, (200,200,255,255))
             self.img_cache[key] = surf
             return surf
-        # load with PIL first for scaling quality then convert to pygame
-        #it looks really wierd and pixelated without this
-        pil = Image.open(img_path).convert("RGBA")
-        # scale relative to radius
-        r_px = max(int(scaled_radius(radius_rsun)), 10) 
-         # minimum radius 10 px
-        w,h = pil.size
+
+        # Build a high-quality base surface once per stype using PIL,
+        # then use pygame for all size variants (much faster on cache miss)
+        if stype_name not in self.init_img_cache:
+            pil = Image.open(img_path).convert("RGBA")
+            # Scale to a fixed large size once with LANCZOS for quality
+            BASE_PX = 512
+            pil_base = pil.resize((BASE_PX, BASE_PX), Image.Resampling.LANCZOS)
+            base_surf = pygame.image.fromstring(
+                pil_base.tobytes(), pil_base.size, pil_base.mode
+            ).convert_alpha()
+            self.init_img_cache[stype_name] = base_surf  # now a Surface, not PIL
+
+        r_px = max(int(self.scaled_radius(radius_rsun)), 10)
+        base_surf = self.init_img_cache[stype_name]
+        w, h = base_surf.get_size()
         scale_factor = (2 * r_px) / h
         new_w = max(4, int(w * scale_factor))
         new_h = max(4, int(h * scale_factor))
-        pil_resized = pil.resize((new_w, new_h), Image.Resampling.LANCZOS)
-        surf = pygame.image.fromstring(pil_resized.tobytes(), pil_resized.size, pil_resized.mode).convert_alpha()
+        surf = pygame.transform.smoothscale(base_surf, (new_w, new_h))
         self.img_cache[key] = surf
         return surf
     
     def get_colored_circle_surface(self, radius_rsun, rgb, u=0.8):
-       
-        r_px = max(int(scaled_radius(radius_rsun)), 10)
+        r_px = max(int(self.scaled_radius(radius_rsun)), 10)
         size = 2 * r_px
-
-        surf = pygame.Surface((size, size), pygame.SRCALPHA)
-
-        cx = cy = r_px
         R = float(r_px)
-
         base_r, base_g, base_b = rgb
 
-        for y in range(size):
-            dy = y - cy
-            for x in range(size):
-                dx = x - cx
-                r = math.hypot(dx, dy)
+        # Build coordinate grids
+        x, y = np.ogrid[:size, :size]
+        dx = x - r_px
+        dy = y - r_px
+        dist = np.hypot(dx, dy)
 
-                if r <= R:
-                    # mu = cos(theta) = sqrt(1 - (r/R)^2)
-                    #from online
-                    mu = math.sqrt(1.0 - (r / R) ** 2)
+        # Limb darkening intensity
+        mask = dist <= R
+        mu = np.where(mask, np.sqrt(np.clip(1.0 - (dist / R) ** 2, 0, 1)), 0)
+        intensity = np.where(mask, 1.0 - u * (1.0 - mu), 0)
 
-                    # the darker outer edge
-                    #this is from a limb darkening equation i got online but have no clue if its the correct way to use it
-                    #it looks fine tho so ill fix / double check later
-                    intensity = 1.0 - u * (1.0 - mu)
+        # Build RGB array
+        pixels = np.zeros((size, size, 3), dtype=np.uint8)
+        pixels[..., 0] = np.clip(base_r * intensity, 0, 255)
+        pixels[..., 1] = np.clip(base_g * intensity, 0, 255)
+        pixels[..., 2] = np.clip(base_b * intensity, 0, 255)
 
-                    col = (
-                        int(base_r * intensity),
-                        int(base_g * intensity),
-                        int(base_b * intensity),
-                        255
-                    )
+        # Create Surface and blit RGB array
+        surf = pygame.Surface((size, size), pygame.SRCALPHA)
+        pygame.surfarray.blit_array(surf, pixels)
 
-                    surf.set_at((x, y), col)
-
+        # Set alpha channel separately
+        alpha = np.where(mask, 255, 0).astype(np.uint8)
+        pygame.surfarray.pixels_alpha(surf)[...] = alpha
         return surf
-
-
-
 
     def draw_mass_transfer_hourglass(self, surface, start_xy, end_xy, rstart_px, rend_px):
         x1,y1 = start_xy
@@ -300,7 +303,11 @@ class PygameAnimator:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
-            self.clock.tick(FPS_PLAYBACK)
+            
+            if self.save_mp4:
+                self.clock.tick()
+            else:
+                self.clock.tick(FPS_PLAYBACK)
             # draw background
             if self.bg_surf:
                 self.screen.blit(self.bg_surf, (0,0))
@@ -320,9 +327,9 @@ class PygameAnimator:
             dist1 = math.sqrt(x1_phys**2 + y1_phys**2)
             # compute scale from physical distances->log(px)
             if dist1 > 0:
-                scale_dist = scaled_radius(dist1) / dist1
+                scale_dist = self.scaled_radius(dist1) / dist1
                 # if using linear, multiply by 3
-                if not USE_LOG_SCALING:
+                if not self.use_log_scaling:
                     scale_dist *= 3.0
             else:
                 scale_dist = 0.0
@@ -376,7 +383,7 @@ class PygameAnimator:
 
 
 
-            if USE_TULIPS_COLOR:
+            if self.use_tulips_color:
                 surf1 = self.get_colored_circle_surface(
                     f['Radius(1)'], f['RGB1']
                 )
@@ -388,7 +395,7 @@ class PygameAnimator:
                 surf2 = self.get_star_surface(f['stypeName2'], f['Radius(2)'])
 
             # Override circles with images for compact objects, since idt thats accurate for a NS but not sure
-            if USE_TULIPS_COLOR:
+            if self.use_tulips_color:
                 if f['stypeName1'] in ('BH', 'NS', 'WD'):
                     surf1 = self.get_star_surface(f['stypeName1'], f['Radius(1)'])
                 if f['stypeName2'] in ('BH', 'NS', 'WD'):
@@ -406,14 +413,14 @@ class PygameAnimator:
                 # star 1
                 if self.bh_birth_frame1 is not None and self.bh_birth_frame1 <= frame_idx < self.bh_birth_frame1 + 50:
                     sn_w, sn_h = self.supernova_img.get_size()
-                    scale_factor = max(int(scaled_radius(f['Radius(1)'])*2 / sn_h), 1)
+                    scale_factor = max(int(self.scaled_radius(f['Radius(1)'])*2 / sn_h), 1)
                     # apply 50% size
                     sn_scaled = pygame.transform.smoothscale(self.supernova_img, (int(sn_w*scale_factor*0.5), int(sn_h*scale_factor*0.5)))
                     self.screen.blit(sn_scaled, (sx1 - sn_scaled.get_width()//2, sy1 - sn_scaled.get_height()//2))
                 # star 2
                 if self.bh_birth_frame2 is not None and self.bh_birth_frame2 <= frame_idx < self.bh_birth_frame2 + 50:
                     sn_w, sn_h = self.supernova_img.get_size()
-                    scale_factor = max(int(scaled_radius(f['Radius(2)'])*2 / sn_h), 1)
+                    scale_factor = max(int(self.scaled_radius(f['Radius(2)'])*2 / sn_h), 1)
                     # apply 50% size
                     sn_scaled = pygame.transform.smoothscale(self.supernova_img, (int(sn_w*scale_factor*0.5), int(sn_h*scale_factor*0.5)))
                     self.screen.blit(sn_scaled, (sx2 - sn_scaled.get_width()//2, sy2 - sn_scaled.get_height()//2))
@@ -510,7 +517,7 @@ class PygameAnimator:
                 self.screen.blit(txt_surf, (x0, y0 + i*20))
 
 
-            if (not USE_TULIPS_COLOR) and self.stellar_list_img:
+            if (not self.use_tulips_color) and self.stellar_list_img:
                 orig_w, orig_h = self.stellar_list_img.get_size()
                 new_w, new_h = orig_w // 2, orig_h // 2
                 img_scaled = pygame.transform.smoothscale(self.stellar_list_img, (new_w, new_h))
@@ -520,7 +527,7 @@ class PygameAnimator:
                 self.screen.blit(img_scaled, (img_x, img_y))
 
             # Draw reference scale at bottom
-            if USE_LOG_SCALING:
+            if self.use_log_scaling:
                 major_ticks = [0, 10, 100, 1000]
 
                 minor_ticks = []
@@ -544,7 +551,7 @@ class PygameAnimator:
                 scale_bar_ticks = list(range(0, int(scale_bar_length_rsun)+1, tick_interval_rsun))
                 major_ticks = scale_bar_ticks[::2] 
 
-            scale_px = scaled_radius(scale_bar_length_rsun) * self.scale
+            scale_px = self.scaled_radius(scale_bar_length_rsun) * self.scale
 
             margin = 40
             x_start = SCREEN_SIZE[0]//2 - scale_px//2
@@ -555,7 +562,7 @@ class PygameAnimator:
             pygame.draw.line(self.screen, (255,255,255), (x_start, y_start), (x_start + scale_px, y_start), 2)
 
             for r in scale_bar_ticks:
-                x_tick = x_start + scaled_radius(r) * self.scale
+                x_tick = x_start + self.scaled_radius(r) * self.scale
                 tick_height = 6
                 pygame.draw.line(self.screen, (255,255,255), (x_tick, y_start - tick_height//2), (x_tick, y_start + tick_height//2), 2)
                 if r in major_ticks:
@@ -564,8 +571,10 @@ class PygameAnimator:
             
             #TESTING VDIEO SAVBING
             if self.video_writer:
-                frame = pygame.surfarray.array3d(self.screen)
-                frame = np.transpose(frame, (1, 0, 2)) 
+                raw = pygame.image.tobytes(self.screen, "RGB")
+                frame = np.frombuffer(raw, dtype=np.uint8).reshape(
+                    self.screen.get_height(), self.screen.get_width(), 3
+                )
                 self.video_writer.append_data(frame)
             if not self.no_display:
                 pygame.display.flip()
@@ -646,7 +655,9 @@ def main():
     animator = PygameAnimator(
         FRAMES_FILE,
         save_mp4=args.save_mp4,
-        no_display=args.no_display
+        no_display=args.no_display,
+        use_log_scaling=USE_LOG_SCALING,
+        use_tulips_color=USE_TULIPS_COLOR
     )
     animator.run()
 

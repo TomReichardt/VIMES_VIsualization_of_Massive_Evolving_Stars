@@ -10,37 +10,46 @@ Log Default
 
 # VIMES: VIsualization of Massive Evolving Stars
 Creates a stellar evolution animation for binary systems simulated using COMPAS.
-Animation is reflective of the radius, separation, percieved color etc of the stars. 
+Animation is reflective of the radius, separation, perceived color etc of the stars. 
 
-ALL code related to temperature-color relationship is directly from the TULIPS code
-https://bitbucket.org/elaplace/tulips/src/master/
-https://ui.adsabs.harvard.edu/abs/2022A%26C....3800516L/abstract
+ALL code related to temperature-color relationship is directly from the (TULIPS code)[https://bitbucket.org/elaplace/tulips/src/master/]. Read (the paper)[https://ui.adsabs.harvard.edu/abs/2022A%26C....3800516L/abstract] for more information.
 
+## Installation
 
-Code is run using the run.sh file. 
-Before doing so, update the data file input path in the preprocess.py file, it is currently set to a default example file provided with the code. 
-in terminal run 
+### Using uv (recommended)
+This project is managed by [uv](https://docs.astral.sh/uv/), so the best way to install it is also using uv (follow [install instructions for uv](https://docs.astral.sh/uv/getting-started/installation/) if you don't have it):
 
-chmod +x "_______/Final Animation/run.sh"
+    uv tool install git+https://github.com/layabinu/VIMES_VIsualization_of_Massive_Evolving_Stars.git
 
-where ______ should be replaced with your path up until that point
+The project can also be cloned from Github as usual, and then installed by running the following command in the cloned directory:
 
+    uv tool install -e .
 
+The `-e` flag signals that local changes to the cloned codebase will also automatically be reflected in the installed tool.
 
-then you can run
-./run.sh log tulips
+### Using pip
+If you'd rather just use pip, we recommend installing the cloned project to a virtual environment:
 
-this is just an example, you have the options of log/linear or tulips/default
-and the animation will be created using pygame
+    python -m venv venv
+    source venv/bin/activate
+    pip install -e .
 
-if you want to save as an mp4 file, after log/linear and tulips/default, write the name of the mp4 file you want it saved to (ex: evolution.mp4)
-If you are running this through colab or do not want the pygame display window, you can also add in the word "headless" after the mp4 file name
-the full command would look something like "./run.sh linear default evolution.mp4 headless"
+The project will then need to be run using the virtual environment, which is typically done by activating the environment before running the script.
 
+## Usage
+Once installed, the project should be able to be run as follows:
 
-things required for this... still needs to be updated  but so far
+    vimes-preprocess <path-to-input>.h5 <output-path>.npz
 
-pip install numpy pygame pillow
+In this case, it will take the input HDF5 file and create a frames file at the output path. Once the frames file has been created, we can create the animation by running:
+
+    vimes <path-to-frames>.npz
+
+This also comes with several optional inputs:
+ - `--scaling` affects the scaling of the animation. It is `linear` by default, but can also accept `log`.
+ - `--images` affects the images that are shown in the animation. The default value is `default`, which renders images of the objects at each stage of evolution, while the other option is `tulips`, which renders circles coloured by their temperature (using the [tulips project](https://bitbucket.org/elaplace/tulips/src/master/)).
+ - `--save-mp4` saves the movie at the specified path.
+ - `--no-display` stops the animation from being displayed (usually only useful if the animation is also being saved as mp4).
 
 
 
