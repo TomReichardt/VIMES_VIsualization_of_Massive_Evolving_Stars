@@ -59,4 +59,24 @@ https://github.com/user-attachments/assets/7c057ed1-494a-4d30-a08d-a19cd3588de0
 
 Linear Tulips
 
+## Akcnowledgement:
+VIMES was created by Laya Binu, please contact Laya for any questions.
+If you make use of VIMES, please cite the following
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18503545.svg)](https://doi.org/10.5281/zenodo.18503545)
+reStructuredText
+
+@software{laya_binu_2026_18503545,
+  author       = {Laya Binu},
+  title        = {layabinu/VIMES\_VIsualization\_of\_Massive\_Evolving\_S
+                   tars: VIMES Stellar Evolution Visualization Code
+                  },
+  month        = feb,
+  year         = 2026,
+  publisher    = {Zenodo},
+  version      = {v0.1.0},
+  doi          = {10.5281/zenodo.18503545},
+  url          = {https://doi.org/10.5281/zenodo.18503545},
+}
+
 
