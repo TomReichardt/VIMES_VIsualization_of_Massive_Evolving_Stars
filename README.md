@@ -61,10 +61,10 @@ Linear Tulips
 
 ## Akcnowledgement:
 VIMES was created by Laya Binu, please contact Laya for any questions.
-If you make use of VIMES, please cite the following
+If you make use of VIMES, we ask you to cite the following Zenodo publication
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18503545.svg)](https://doi.org/10.5281/zenodo.18503545)
-reStructuredText
+
 
 @software{laya_binu_2026_18503545,
   author       = {Laya Binu},
