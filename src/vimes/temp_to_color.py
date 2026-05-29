@@ -3,8 +3,7 @@ from pathlib import Path
 import h5py as h5
 import numpy as np
 from tulips.blackbody import blackbody_color
-from tulips.colormodels import irgb_color
-from tulips.colormodels import irgb_from_xyz
+from tulips.colormodels import irgb_color, irgb_from_xyz
 
 # ------------------------------
 # Paths

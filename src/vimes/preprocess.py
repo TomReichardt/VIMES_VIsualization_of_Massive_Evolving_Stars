@@ -29,8 +29,8 @@ JUMP_THRESHOLD_ABS = 50.0
 MT_PADDING_FRAMES = 60
 
 
-def getStellarTypes():
-    stellarTypes = [
+def get_stellar_types():
+    stellar_types = [
         "MS",
         "MS",
         "HG",
@@ -50,10 +50,10 @@ def getStellarTypes():
         "CHE",
     ]
 
-    def typeMap(idx):
-        return stellarTypes[int(idx)] if int(idx) < len(stellarTypes) else "unknown"
+    def type_map(idx):
+        return stellar_types[int(idx)] if int(idx) < len(stellar_types) else "unknown"
 
-    return typeMap
+    return type_map
 
 
 def load_hdf5_and_mask(path):
@@ -67,14 +67,15 @@ def load_hdf5_and_mask(path):
 # helper functions
 
 
-def detect_phases_indices(Data):
-    n = len(Data["Time"])
+def detect_phases_indices(stellar_type_1, stellar_type_2):
+    # used to get the length based on the time array, but I don't think this is needed
+    n = len(stellar_type_1)
     phases = []
     start = 0
     for i in range(1, n):
         if (
-            Data["Stellar_Type(1)"][i] != Data["Stellar_Type(1)"][i - 1]
-            or Data["Stellar_Type(2)"][i] != Data["Stellar_Type(2)"][i - 1]
+            stellar_type_1[i] != stellar_type_1[i - 1]
+            or stellar_type_2[i] != stellar_type_2[i - 1]
         ):
             phases.append((start, i - 1))
             start = i
@@ -82,8 +83,7 @@ def detect_phases_indices(Data):
     return phases
 
 
-def detect_mt_starts(Data):
-    mt = Data["MT_History"].astype(int)
+def detect_mt_starts(mt):
     starts = set()
     for i in range(1, len(mt)):
         if mt[i - 1] == 0 and mt[i] > 0:
@@ -95,30 +95,32 @@ def sample_indices(start, end, n):
     return np.linspace(start, end, n).tolist()
 
 
-def interp(Data, idx, key):
+def interp(data, idx):
     if abs(idx - round(idx)) < 1e-9:
-        return float(Data[key][int(idx)])
+        return float(data[int(idx)])
     lo = int(math.floor(idx))
     hi = int(math.ceil(idx))
     frac = idx - lo
-    return (1 - frac) * float(Data[key][lo]) + frac * float(Data[key][hi])
+    return (1 - frac) * float(data[lo]) + frac * float(data[hi])
 
 
-def detect_large_jump(v1, v2):
+def detect_large_jump(
+    v1, v2, threshold_ratio=JUMP_THRESHOLD_RATIO, threshold_abs=JUMP_THRESHOLD_ABS
+):
     if v1 <= 0 or v2 <= 0:
         return False
-    if max(v1, v2) / min(v1, v2) >= JUMP_THRESHOLD_RATIO:
+    if max(v1, v2) / min(v1, v2) >= threshold_ratio:
         return True
-    return abs(v1 - v2) >= JUMP_THRESHOLD_ABS
+    return abs(v1 - v2) >= threshold_abs
 
 
-def make_event_string(idx, Data, typeMap):
+def make_event_string(idx, Data, type_map):
     if idx == 0:
         return (
             f"Zero-age main-sequence, Z = {float(Data['Metallicity@ZAMS(1)'][0]):.4f}"
         )
-    t1 = typeMap(Data["Stellar_Type(1)"][idx])
-    t2 = typeMap(Data["Stellar_Type(2)"][idx])
+    t1 = type_map(Data["Stellar_Type(1)"][idx])
+    t2 = type_map(Data["Stellar_Type(2)"][idx])
     return f"Phase: {t1} + {t2}"
 
 
@@ -126,9 +128,9 @@ def make_event_string(idx, Data, typeMap):
 def preprocess_to_frames(hdf5_path, out_path):
     print("Loading HDF5...")
     Data = load_hdf5_and_mask(hdf5_path)
-    typeMap = getStellarTypes()
-    phases = detect_phases_indices(Data)
-    mt_starts = detect_mt_starts(Data)
+    type_map = get_stellar_types()
+    phases = detect_phases_indices(Data["Stellar_Type(1)"], Data["Stellar_Type(2)"])
+    mt_starts = detect_mt_starts(Data["MT_History"].astype(int))
 
     frames = []
 
@@ -148,11 +150,11 @@ def preprocess_to_frames(hdf5_path, out_path):
                 "Mass(1)",
                 "Mass(2)",
             ]:
-                f[k] = interp(Data, pos, k)
+                f[k] = interp(Data[k], pos)
 
-            f["stypeName1"] = typeMap(int(round(interp(Data, pos, "Stellar_Type(1)"))))
-            f["stypeName2"] = typeMap(int(round(interp(Data, pos, "Stellar_Type(2)"))))
-            f["eventString"] = make_event_string(int(round(pos)), Data, typeMap)
+            f["stypeName1"] = type_map(int(round(interp(Data["Stellar_Type(1)"], pos))))
+            f["stypeName2"] = type_map(int(round(interp(Data["Stellar_Type(2)"], pos))))
+            f["eventString"] = make_event_string(int(round(pos)), Data, type_map)
             sampled.append(f)
 
         # interpolation
