@@ -9,7 +9,7 @@ Log Default
 
 
 # VIMES: VIsualization of Massive Evolving Stars
-Creates a stellar evolution animation for binary systems simulated using COMPAS.
+Creates a stellar evolution animation for binary systems simulated using COMPAS (or another population synthesis code).
 Animation is reflective of the radius, separation, perceived color etc of the stars. 
 
 ALL code related to temperature-color relationship is directly from the (TULIPS code)[https://bitbucket.org/elaplace/tulips/src/master/]. Read (the paper)[https://ui.adsabs.harvard.edu/abs/2022A%26C....3800516L/abstract] for more information.
